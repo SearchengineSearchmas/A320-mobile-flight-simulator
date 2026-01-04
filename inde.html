@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>A320 Mobile Sim</title>
+<style>
+html,body{
+  margin:0;
+  overflow:hidden;
+  background:#87CEEB;
+  touch-action:none;
+}
+canvas{display:block;}
+#throttle{
+  position:fixed;
+  right:20px;
+  bottom:20px;
+  width:50px;
+  height:180px;
+  background:rgba(0,0,0,.4);
+  border-radius:10px;
+}
+#knob{
+  position:absolute;
+  bottom:0;
+  width:100%;
+  height:40px;
+  background:#00ffcc;
+  border-radius:10px;
+}
+</style>
+</head>
+
+<body>
+<canvas id="c"></canvas>
+<div id="throttle"><div id="knob"></div></div>
+
+<script>
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
+
+function resize(){
+  c.width = window.innerWidth;
+  c.height = window.innerHeight;
+}
+resize(); window.onresize=resize;
+
+let pitch=0, roll=0, speed=0, alt=1000, thr=0;
+let started=false;
+
+/* Start on first touch (Safari requirement) */
+document.body.addEventListener("touchstart",()=>started=true,{once:true});
+
+/* Tilt */
+window.addEventListener("deviceorientation",e=>{
+  pitch = (e.beta||0)/30;
+  roll  = (e.gamma||0)/30;
+});
+
+/* Throttle */
+const t=document.getElementById("throttle");
+const k=document.getElementById("knob");
+let drag=false;
+t.ontouchstart=()=>drag=true;
+window.ontouchend=()=>drag=false;
+window.ontouchmove=e=>{
+ if(!drag)return;
+ let r=t.getBoundingClientRect();
+ let y=e.touches[0].clientY-r.top;
+ y=Math.max(0,Math.min(r.height-40,y));
+ k.style.bottom=(r.height-40-y)+"px";
+ thr=(r.height-y)/r.height;
+};
+
+/* Physics */
+function physics(){
+ speed+=thr*0.1;
+ speed*=0.99;
+ alt+=pitch*speed*0.05;
+ if(alt<0)alt=0;
+}
+
+/* Draw */
+function draw(){
+ ctx.clearRect(0,0,c.width,c.height);
+
+ /* Sky */
+ ctx.fillStyle="#87CEEB";
+ ctx.fillRect(0,0,c.width,c.height/2);
+
+ /* Ground */
+ ctx.fillStyle="#3a7";
+ ctx.fillRect(0,c.height/2,c.width,c.height/2);
+
+ /* Aircraft */
+ ctx.save();
+ ctx.translate(c.width/2,c.height/2);
+ ctx.rotate(roll);
+ ctx.fillStyle="white";
+ ctx.fillRect(-40,-6,80,12);
+ ctx.fillRect(-6,-30,12,60);
+ ctx.restore();
+
+ /* HUD */
+ ctx.fillStyle="black";
+ ctx.fillText("SPD "+speed.toFixed(0),10,20);
+ ctx.fillText("ALT "+alt.toFixed(0),10,40);
+ ctx.fillText("THR "+(thr*100).toFixed(0)+"%",10,60);
+}
+
+function loop(){
+ if(started){
+   physics();
+   draw();
+ }
+ requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

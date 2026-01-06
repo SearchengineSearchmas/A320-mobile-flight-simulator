@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Graphics Test</title>
+<style>
+html,body{
+  margin:0;
+  padding:0;
+  background:black;
+  overflow:hidden;
+}
+canvas{
+  display:block;
+}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+resize();
+window.onresize = resize;
+
+// DRAW SOMETHING BIG & OBVIOUS
+ctx.fillStyle = "skyblue";
+ctx.fillRect(0,0,canvas.width,canvas.height);
+
+ctx.fillStyle = "green";
+ctx.fillRect(0,canvas.height*0.7,canvas.width,canvas.height*0.3);
+
+ctx.fillStyle = "white";
+ctx.fillRect(canvas.width/2-100,canvas.height/2-20,200,40); // plane body
+
+ctx.fillRect(canvas.width/2-20,canvas.height/2-80,40,160); // wing
+
+ctx.fillStyle = "red";
+ctx.font = "30px sans-serif";
+ctx.fillText("YOU SHOULD SEE A PLANE", 20, 40);
+</script>
+
+</body>
+</html>

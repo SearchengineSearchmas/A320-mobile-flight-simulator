@@ -3,34 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>A320 Extreme Flight Sim</title>
+    <title>A320 - Infinite Horizon</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; }
-        #ui { position: absolute; top: 20px; left: 20px; color: #00ff00; pointer-events: none; z-index: 10; }
-        
-        /* Joystick Styles */
-        #joy-container { position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px; background: rgba(255,255,255,0.1); border: 2px solid #555; border-radius: 50%; display: none; touch-action: none; }
-        #joy-knob { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; background: #fff; border-radius: 50%; transform: translate(-50%, -50%); opacity: 0.6; }
-        @media (pointer: coarse) { #joy-container { display: block; } }
-
-        /* Crash Overlay */
-        #crash-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; z-index: 100; background: rgba(50, 0, 0, 0.4); }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
+        #hud { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 280px; background: rgba(0,20,0,0.8); color: #0f0; padding: 10px; border: 2px solid #0f0; pointer-events: none; text-align: center; }
+        #view-toggle { position: absolute; top: 20px; right: 20px; padding: 10px; background: #111; color: #0f0; border: 1px solid #0f0; cursor: pointer; }
+        #joy-base { position: absolute; bottom: 40px; left: 40px; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border-radius: 50%; border: 1px solid #777; touch-action: none; display: none; }
+        #joy-stick { position: absolute; top: 50%; left: 50%; width: 30px; height: 30px; background: #fff; border-radius: 50%; transform: translate(-50%, -50%); }
+        @media (pointer: coarse) { #joy-base { display: block; } }
+        #crash-msg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 999; background: rgba(100,0,0,0.3); }
         #blood-canvas { width: 100%; height: 100%; }
-        #warning { position: absolute; top: 40%; width: 100%; text-align: center; color: #ff0000; font-size: 3rem; font-weight: bold; text-shadow: 2px 2px #000; }
     </style>
 </head>
 <body>
 
-<div id="ui">
-    <div style="font-size: 1.2rem; margin-bottom: 5px;">AIRBUS A320 NEO</div>
-    <div id="stats">ALT: 1500FT | SPD: 240KTS</div>
+<div id="hud">
+    <div style="display:flex; justify-content:space-between"><span>SPD: 250KT</span><span id="alt-txt">ALT: 1000FT</span></div>
+    <div style="border: 1px solid #0f0; margin: 5px 0;">[ HORIZON ]</div>
+    <div id="dist-txt">DIST: 0000NM</div>
 </div>
 
-<div id="joy-container"><div id="joy-knob"></div></div>
+<button id="view-toggle">TOGGLE VIEW [V]</button>
+<div id="joy-base"><div id="joy-stick"></div></div>
 
-<div id="crash-screen">
-    <div id="warning">TERRAIN COLLISION - SIGNAL LOST</div>
+<div id="crash-msg">
     <canvas id="blood-canvas"></canvas>
+    <h1 style="position:absolute; top:40%; width:100%; text-align:center; color:white; font-size:3rem; text-shadow: 0 0 10px red;">TOTAL AIRFRAME LOSS</h1>
 </div>
 
 <script type="importmap">
@@ -40,158 +38,156 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // --- Scene Setup ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x6aaed6);
-    scene.fog = new THREE.FogExp2(0x6aaed6, 0.00015);
+    scene.background = new THREE.Color(0x020205);
+    scene.fog = new THREE.FogExp2(0x020205, 0.00015);
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 30000);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 1, 60000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    const light = new THREE.DirectionalLight(0xffffff, 1.5);
-    light.position.set(500, 1000, 500);
-    scene.add(light, new THREE.AmbientLight(0xffffff, 0.5));
+    const sun = new THREE.DirectionalLight(0xffffff, 1);
+    sun.position.set(0, 1000, 0);
+    scene.add(sun, new THREE.AmbientLight(0x444466));
 
-    // --- Objects & Groups ---
-    const collidables = [];
-    const npcs = [];
-    let isCrashed = false;
+    // --- INFINITE CITY LOGIC ---
+    const buildings = [];
+    const buildGeo = new THREE.BoxGeometry(1, 1, 1);
+    const buildMat = new THREE.MeshStandardMaterial({ color: 0x151515 });
+    const winMat = new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0xffff00 });
 
-    // Ground
-    const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(50000, 50000), 
-        new THREE.MeshStandardMaterial({ color: 0x223311 })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    scene.add(ground);
-
-    // City Buildings
-    const buildGeo = new THREE.BoxGeometry(40, 200, 40);
-    const buildMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
-    for(let i=0; i<40; i++) {
+    for(let i=0; i<300; i++) {
+        const h = Math.random() * 300 + 50;
         const b = new THREE.Mesh(buildGeo, buildMat);
-        b.position.set(Math.random()*2000-1000, 100, Math.random()*-4000-500);
+        b.scale.set(40, h, 40);
+        
+        // Add random windows
+        const w = new THREE.Mesh(new THREE.BoxGeometry(42, 2, 42), winMat);
+        w.position.y = (Math.random() * h) - h/2;
+        b.add(w);
+
+        b.position.set(Math.random()*6000 - 3000, h/2, Math.random() * -15000);
         scene.add(b);
-        collidables.push(b);
+        buildings.push(b);
     }
 
-    // AI NPC Planes (Red Gliders)
-    function createNPC() {
-        const group = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.CapsuleGeometry(2, 10, 4, 8), new THREE.MeshStandardMaterial({color:0x990000}));
-        body.rotation.x = Math.PI/2;
-        const wing = new THREE.Mesh(new THREE.BoxGeometry(15, 0.5, 3), new THREE.MeshStandardMaterial({color:0xff0000}));
-        group.add(body, wing);
-        group.position.set(Math.random()*600-300, Math.random()*300+100, Math.random()*-3000);
-        scene.add(group);
-        npcs.push(group);
-        collidables.push(group);
-    }
-    for(let i=0; i<8; i++) createNPC();
-
-    // A320 Cockpit Frame
+    // --- PLAYER & AI ---
+    const player = new THREE.Group();
+    const planeModel = new THREE.Mesh(new THREE.CapsuleGeometry(4, 30, 4, 12), new THREE.MeshStandardMaterial({color: 0xffffff}));
+    planeModel.rotation.x = Math.PI/2;
+    player.add(planeModel);
+    
+    // Cockpit Details
     const cockpit = new THREE.Group();
-    const glassFrameMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
-    const dash = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 2), glassFrameMat);
-    dash.position.set(0, -0.8, -1);
-    const pillarL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3, 0.2), glassFrameMat);
-    pillarL.position.set(-1.2, 0, -0.5); pillarL.rotation.z = 0.3;
-    const pillarR = pillarL.clone(); pillarR.position.x = 1.2; pillarR.rotation.z = -0.3;
-    cockpit.add(dash, pillarL, pillarR);
-    camera.add(cockpit);
-    scene.add(camera);
-    camera.position.y = 500; // Start at altitude
+    const sidestick = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,3), new THREE.MeshStandardMaterial({color:0x111111}));
+    sidestick.position.set(-3.5, -1, 5);
+    cockpit.add(sidestick);
+    player.add(cockpit);
 
-    // --- Controls ---
-    const keys = { up: false, down: false, left: false, right: false };
-    const joy = { x: 0, y: 0 };
-    window.addEventListener('keydown', e => { if(keys.hasOwnProperty(e.key.replace('Arrow','').toLowerCase())) keys[e.key.replace('Arrow','').toLowerCase()] = true; });
-    window.addEventListener('keyup', e => { if(keys.hasOwnProperty(e.key.replace('Arrow','').toLowerCase())) keys[e.key.replace('Arrow','').toLowerCase()] = false; });
+    scene.add(player);
+    player.position.y = 1000;
 
-    // Mobile Joystick
-    const joyCont = document.getElementById('joy-container');
-    const joyKnob = document.getElementById('joy-knob');
-    joyCont.addEventListener('touchmove', e => {
-        const r = joyCont.getBoundingClientRect();
+    const aiPlanes = [];
+    for(let i=0; i<8; i++) {
+        const ai = new THREE.Mesh(new THREE.BoxGeometry(20, 5, 30), new THREE.MeshStandardMaterial({color:0xff0000}));
+        ai.position.set(Math.random()*2000-1000, Math.random()*800+200, Math.random()*-10000);
+        scene.add(ai);
+        aiPlanes.push(ai);
+    }
+
+    // --- CONTROLS ---
+    let isDead = false, isTP = false;
+    const input = { pitch: 0, roll: 0 };
+    window.onkeydown = e => {
+        if(e.key === 'v') isTP = !isTP;
+        if(e.key === 'ArrowDown') input.pitch = 0.025; // Pull up
+        if(e.key === 'ArrowUp') input.pitch = -0.025;
+        if(e.key === 'ArrowLeft') input.roll = 0.035;
+        if(e.key === 'ArrowRight') input.roll = -0.035;
+    };
+    window.onkeyup = () => { input.pitch = 0; input.roll = 0; };
+
+    // Mobile
+    const joyBase = document.getElementById('joy-base');
+    const joyStick = document.getElementById('joy-stick');
+    joyBase.addEventListener('touchmove', e => {
+        const r = joyBase.getBoundingClientRect();
         const t = e.touches[0];
-        joy.x = (t.clientX - (r.left + r.width/2)) / (r.width/2);
-        joy.y = (t.clientY - (r.top + r.height/2)) / (r.height/2);
-        joyKnob.style.left = `${50 + Math.max(-50, Math.min(50, joy.x * 50))}%`;
-        joyKnob.style.top = `${50 + Math.max(-50, Math.min(50, joy.y * 50))}%`;
+        const dx = (t.clientX - (r.left + r.width/2)) / (r.width/2);
+        const dy = (t.clientY - (r.top + r.height/2)) / (r.height/2);
+        input.roll = -dx * 0.05; input.pitch = dy * 0.05;
+        joyStick.style.left = `${50 + dx*40}%`; joyStick.style.top = `${50 + dy*40}%`;
     });
-    joyCont.addEventListener('touchend', () => { joy.x = 0; joy.y = 0; joyKnob.style.left='50%'; joyKnob.style.top='50%'; });
+    joyBase.addEventListener('touchend', () => { input.pitch=0; input.roll=0; joyStick.style.left='50%'; joyStick.style.top='50%'; });
 
-    // --- Crash Cutscene ---
     function triggerCrash() {
-        if(isCrashed) return;
-        isCrashed = true;
-        document.getElementById('crash-screen').style.display = 'block';
+        if(isDead) return;
+        isDead = true;
+        document.getElementById('crash-msg').style.display = 'block';
         const canvas = document.getElementById('blood-canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        
-        const drips = [];
-        for(let i=0; i<40; i++) drips.push({x: Math.random()*canvas.width, y: -20, r: Math.random()*20+10, s: Math.random()*4+2});
-
-        function drip() {
-            ctx.fillStyle = 'rgba(150, 0, 0, 0.7)';
-            drips.forEach(d => {
-                ctx.beginPath();
-                ctx.arc(d.x, d.y, d.r, 0, Math.PI*2);
-                ctx.fill();
-                d.y += d.s;
-                d.x += Math.sin(d.y/20);
-            });
-            if(isCrashed) requestAnimationFrame(drip);
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        let blood = [];
+        for(let i=0; i<60; i++) blood.push({x:Math.random()*canvas.width, y:-20, r:Math.random()*25+5, s:Math.random()*6+2});
+        function animateBlood() {
+            ctx.fillStyle = 'rgba(180,0,0,0.6)';
+            blood.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill(); b.y+=b.s; });
+            requestAnimationFrame(animateBlood);
         }
-        drip();
-        setTimeout(() => location.reload(), 5000);
+        animateBlood();
+        setTimeout(() => location.reload(), 4000);
     }
 
-    // --- Game Loop ---
-    let speed = 3.5;
+    // --- ANIMATION LOOP ---
     function animate() {
-        if(isCrashed) return;
+        if(isDead) return;
         requestAnimationFrame(animate);
 
-        // Movement Logic
-        let pitch = 0, roll = 0;
-        // PC: Down=Up, Up=Down | Mobile: Joy.y
-        if(keys.up || joy.y < -0.2) pitch = -0.015;
-        if(keys.down || joy.y > 0.2) pitch = 0.015;
-        if(keys.left || joy.x < -0.2) roll = 0.025;
-        if(keys.right || joy.x > 0.2) roll = -0.025;
+        player.rotation.x += input.pitch;
+        player.rotation.y += input.roll * 0.5;
+        player.rotation.z = THREE.MathUtils.lerp(playerPlane.rotation.z, input.roll*2, 0.1);
+        player.translateZ(-7); // Constant forward speed
 
-        camera.rotation.x += pitch;
-        camera.rotation.z = THREE.MathUtils.lerp(camera.rotation.z, roll*2, 0.1);
-        camera.rotation.y += roll * 0.6;
-        camera.translateZ(-speed);
+        sidestick.rotation.x = input.pitch * 10;
+        sidestick.rotation.z = input.roll * 10;
 
-        // NPC AI Logic
-        npcs.forEach(n => {
-            n.position.z += 1.5; // Flying towards you
-            if(n.position.z > camera.position.z + 100) n.position.z -= 4000;
+        // Camera View
+        if(isTP) {
+            const offset = new THREE.Vector3(0, 20, 70).applyQuaternion(player.quaternion);
+            camera.position.copy(player.position).add(offset);
+            camera.lookAt(player.position);
+            cockpit.visible = false;
+        } else {
+            camera.position.copy(player.position);
+            camera.quaternion.copy(player.quaternion);
+            cockpit.visible = true;
+        }
+
+        // INFINITE CITY RECYCLING
+        buildings.forEach(b => {
+            // If building is 2000 units behind the player, move it 13000 units ahead
+            if(b.position.z > player.position.z + 2000) {
+                b.position.z -= 15000;
+                b.position.x = player.position.x + (Math.random()*6000 - 3000);
+            }
+            if(player.position.distanceTo(b.position) < 40) triggerCrash();
         });
 
-        // Collision Checks
-        if(camera.position.y < 5) triggerCrash(); // Ground
-        collidables.forEach(c => {
-            if(camera.position.distanceTo(c.position) < 25) triggerCrash();
+        // AI RECYCLING
+        aiPlanes.forEach(ai => {
+            ai.position.z += 3;
+            if(ai.position.z > player.position.z + 1000) ai.position.z -= 12000;
+            if(player.position.distanceTo(ai.position) < 30) triggerCrash();
         });
 
-        document.getElementById('stats').innerText = `ALT: ${Math.round(camera.position.y * 3)}FT | SPD: 240KTS`;
+        if(player.position.y < 10) triggerCrash();
+
+        document.getElementById('alt-txt').innerText = `ALT: ${Math.round(player.position.y * 3)}FT`;
+        document.getElementById('dist-txt').innerText = `DIST: ${Math.round(Math.abs(player.position.z)/100)}NM`;
+        
         renderer.render(scene, camera);
     }
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth/window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-
     animate();
 </script>
 </body>

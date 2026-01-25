@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Arcade Flight Sim — Fixed Crash</title>
+<meta charset="UTF-8">
+<title>Arcade Flight Sim — Proper Crash</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 <style>
 html, body { margin:0; height:100%; overflow:hidden; background:#87ceeb; }
 canvas { display:block; }
 
-/* HUD */
 #hud{
   position:fixed; left:10px; top:10px;
   background:rgba(0,0,0,.45); color:#fff;
@@ -16,7 +15,6 @@ canvas { display:block; }
   font-size:14px;
 }
 
-/* Throttle (mobile) */
 #throttleBar{
   position:fixed; right:15px; bottom:90px;
   width:34px; height:220px; background:#222;
@@ -28,11 +26,9 @@ canvas { display:block; }
   background:#00ff88; border-radius:18px; bottom:40%;
 }
 
-/* Joystick */
 #joy{position:fixed; left:20px; bottom:80px;width:110px;height:110px;background:rgba(0,0,0,.25);border-radius:50%;touch-action:none;}
 #joyDot{position:absolute; left:40px; top:40px; width:30px; height:30px; border-radius:50%; background:#fff;}
 
-/* Crash Overlay */
 #crashOverlay{
   position:fixed; inset:0; display:none; z-index:100;
   background:rgba(0,0,0,0.75);
@@ -51,7 +47,7 @@ canvas { display:block; }
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script>
-/* ================== SCENE ================== */
+/* SCENE SETUP */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 
@@ -97,19 +93,19 @@ const terminal = new THREE.Mesh(
 terminal.position.set(30,6,-200);
 scene.add(terminal);
 
-/* Buildings (for crash) */
+/* BUILDINGS FAR AWAY FROM START */
 const buildings=[];
 for(let i=0;i<10;i++){
   const b = new THREE.Mesh(
     new THREE.BoxGeometry(8,20,8),
     new THREE.MeshStandardMaterial({color:0x888888})
   );
-  b.position.set(Math.random()*100-50,10,-300 - Math.random()*200);
+  b.position.set(Math.random()*100-50,10,-300 - Math.random()*200 - 50); // far enough from start
   scene.add(b);
   buildings.push(b);
 }
 
-/* Plane */
+/* PLANE */
 const plane = new THREE.Group();
 const body = new THREE.Mesh(
   new THREE.CylinderGeometry(0.6,0.8,6,16),
@@ -125,19 +121,19 @@ plane.add(wing);
 plane.position.set(0,15,0);
 scene.add(plane);
 
-/* Controls */
-let throttle=0.4, speed=0;
-const MAX_SPEED=18, STALL_SPEED=2;
+/* CONTROLS */
+let throttle=0.4,speed=0;
+const MAX_SPEED=18,STALL_SPEED=2;
 let pitchInput=0;
 let landed=false, boarding=false, crashed=false;
 
-/* Keyboard */
-addEventListener('keydown',e=>{
+/* KEYBOARD */
+addEventListener('keydown', e=>{
   if(e.key.toLowerCase()==='w') throttle=Math.min(1,throttle+0.04);
   if(e.key.toLowerCase()==='s') throttle=Math.max(0,throttle-0.04);
 });
 
-/* Mobile throttle */
+/* MOBILE THROTTLE */
 const bar=document.getElementById('throttleBar');
 const knob=document.getElementById('throttleKnob');
 bar.addEventListener('touchmove',e=>{
@@ -148,20 +144,20 @@ bar.addEventListener('touchmove',e=>{
   knob.style.bottom=(throttle*100)+'%';
 },{passive:false});
 
-/* Joystick pitch */
+/* MOBILE JOYSTICK */
 const joy=document.getElementById('joy');
 const dot=document.getElementById('joyDot');
-joy.addEventListener('touchmove',e=>{
+joy.addEventListener('touchmove', e=>{
   const r=joy.getBoundingClientRect();
-  const y=e.touches[0].clientY - r.top - 55;
-  const dy=Math.max(-35,Math.min(35,y));
-  dot.style.top=(55+dy-15)+'px';
+  const y = e.touches[0].clientY - r.top - 55;
+  const dy = Math.max(-35, Math.min(35, y));
+  dot.style.top = (55+dy-15)+'px';
   pitchInput=-dy/35;
 },{passive:false});
-joy.addEventListener('touchend',()=>{dot.style.top='40px';pitchInput=0;});
+joy.addEventListener('touchend',()=>{dot.style.top='40px'; pitchInput=0;});
 
-/* Crash overlay */
-const overlay=document.getElementById('crashOverlay');
+/* CRASH OVERLAY */
+const overlay = document.getElementById('crashOverlay');
 function triggerCrash(){
   if(crashed) return;
   crashed=true;
@@ -169,49 +165,51 @@ function triggerCrash(){
   setTimeout(()=>location.reload(),3000);
 }
 
-/* Animate */
+/* ANIMATION LOOP */
 function animate(){
   requestAnimationFrame(animate);
   if(crashed) return;
 
-  // Speed
+  // speed
   speed += ((throttle*MAX_SPEED)-speed)*0.05;
 
-  // Pitch
+  // pitch
   plane.rotation.x += pitchInput*0.02;
 
-  // Forward
+  // forward
   plane.translateZ(-speed*0.05);
 
-  // Stall
+  // stall
   if(speed<STALL_SPEED && plane.position.y>2) plane.position.y-=0.15;
 
-  // Crash detection
-  if(plane.position.y<=2) triggerCrash(); // Ground
+  // crash detection
+  if(plane.position.y<=2) triggerCrash(); // ground
   buildings.forEach(b=>{
-    if(plane.position.distanceTo(b.position)<4) triggerCrash();
+    const dx = plane.position.x - b.position.x;
+    const dy = plane.position.y - b.position.y;
+    const dz = plane.position.z - b.position.z;
+    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+    if(dist<4) triggerCrash();
   });
 
-  // Runway landing
-  const dx=Math.abs(plane.position.x-runway.position.x);
-  const dz=Math.abs(plane.position.z-runway.position.z);
+  // runway landing
+  const dx = Math.abs(plane.position.x-runway.position.x);
+  const dz = Math.abs(plane.position.z-runway.position.z);
   if(dx<9 && dz<110 && plane.position.y<=2.1 && speed<4) landed=true;
 
-  // Auto stop + boarding
+  // auto stop
   if(landed){
     throttle=Math.max(0,throttle-0.02);
-    if(speed<0.2 && !boarding){
-      boarding=true;
-    }
+    if(speed<0.2 && !boarding) boarding=true;
   }
 
-  // Camera cockpit
+  // cockpit camera
   camera.position.copy(plane.position);
   camera.rotation.copy(plane.rotation);
 
   // HUD
   document.getElementById('th').textContent=Math.round(throttle*100)+'%';
-  document.getElementById('st').textContent=landed?'LANDED':'AIR';
+  document.getElementById('st').textContent = landed?'LANDED':'AIR';
 
   renderer.render(scene,camera);
 }

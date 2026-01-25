@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Arcade Flight Sim — Crash Screen</title>
+<title>Arcade Flight Sim — Fixed Crash</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 <style>
 html, body { margin:0; height:100%; overflow:hidden; background:#87ceeb; }
@@ -47,7 +47,6 @@ canvas { display:block; }
 <div id="hud">Throttle: <span id="th">40%</span><br>Status: <span id="st">AIR</span></div>
 <div id="joy"><div id="joyDot"></div></div>
 <div id="throttleBar"><div id="throttleKnob"></div></div>
-
 <div id="crashOverlay">GAME OVER<br>Restarting...</div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
@@ -98,20 +97,19 @@ const terminal = new THREE.Mesh(
 terminal.position.set(30,6,-200);
 scene.add(terminal);
 
-/* People */
-const people=[];
-for(let i=0;i<8;i++){
-  const p=new THREE.Mesh(
-    new THREE.SphereGeometry(0.6,12,12),
-    new THREE.MeshStandardMaterial({color:0xffccaa})
+/* Buildings (for crash) */
+const buildings=[];
+for(let i=0;i<10;i++){
+  const b = new THREE.Mesh(
+    new THREE.BoxGeometry(8,20,8),
+    new THREE.MeshStandardMaterial({color:0x888888})
   );
-  p.position.set(28 + Math.random()*4,0.6,-205 + Math.random()*10);
-  p.visible=false;
-  scene.add(p);
-  people.push(p);
+  b.position.set(Math.random()*100-50,10,-300 - Math.random()*200);
+  scene.add(b);
+  buildings.push(b);
 }
 
-/* PLANE */
+/* Plane */
 const plane = new THREE.Group();
 const body = new THREE.Mesh(
   new THREE.CylinderGeometry(0.6,0.8,6,16),
@@ -127,11 +125,11 @@ plane.add(wing);
 plane.position.set(0,15,0);
 scene.add(plane);
 
-/* CONTROLS */
-let throttle=0.4,speed=0;
-const MAX_SPEED=18,STALL_SPEED=2;
+/* Controls */
+let throttle=0.4, speed=0;
+const MAX_SPEED=18, STALL_SPEED=2;
 let pitchInput=0;
-let landed=false,boarding=false,crashed=false;
+let landed=false, boarding=false, crashed=false;
 
 /* Keyboard */
 addEventListener('keydown',e=>{
@@ -162,7 +160,7 @@ joy.addEventListener('touchmove',e=>{
 },{passive:false});
 joy.addEventListener('touchend',()=>{dot.style.top='40px';pitchInput=0;});
 
-/* CRASH */
+/* Crash overlay */
 const overlay=document.getElementById('crashOverlay');
 function triggerCrash(){
   if(crashed) return;
@@ -171,48 +169,43 @@ function triggerCrash(){
   setTimeout(()=>location.reload(),3000);
 }
 
-/* ANIMATE */
+/* Animate */
 function animate(){
   requestAnimationFrame(animate);
   if(crashed) return;
 
-  // speed
+  // Speed
   speed += ((throttle*MAX_SPEED)-speed)*0.05;
 
-  // pitch
+  // Pitch
   plane.rotation.x += pitchInput*0.02;
 
-  // forward
+  // Forward
   plane.translateZ(-speed*0.05);
 
-  // stall
+  // Stall
   if(speed<STALL_SPEED && plane.position.y>2) plane.position.y-=0.15;
 
-  // ground/building collision
-  if(plane.position.y<=2 || Math.abs(plane.position.x)>100 || Math.abs(plane.position.z+200)>110){
-    triggerCrash();
-    return;
-  }
+  // Crash detection
+  if(plane.position.y<=2) triggerCrash(); // Ground
+  buildings.forEach(b=>{
+    if(plane.position.distanceTo(b.position)<4) triggerCrash();
+  });
 
-  // runway landing
+  // Runway landing
   const dx=Math.abs(plane.position.x-runway.position.x);
   const dz=Math.abs(plane.position.z-runway.position.z);
   if(dx<9 && dz<110 && plane.position.y<=2.1 && speed<4) landed=true;
 
-  // auto stop + boarding
+  // Auto stop + boarding
   if(landed){
     throttle=Math.max(0,throttle-0.02);
     if(speed<0.2 && !boarding){
       boarding=true;
-      people.forEach((p,i)=>{
-        p.visible=true;
-        p.position.x=30; p.position.z=-200;
-        setTimeout(()=>{p.position.x-=8;},i*300);
-      });
     }
   }
 
-  // camera cockpit view
+  // Camera cockpit
   camera.position.copy(plane.position);
   camera.rotation.copy(plane.rotation);
 

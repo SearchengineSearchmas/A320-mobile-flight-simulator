@@ -1,4 +1,4 @@
-<!DOCTYPE htm>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -8,31 +8,28 @@
 <link rel="manifest" href="manifest.json">
 
 <style>
-body { margin:0; overflow:hidden; background:#000; font-family:monospace; }
-#ui { position:absolute; top:15px; left:15px; color:#00ff00; z-index:10; }
-#crash-screen {
-  position:fixed; inset:0;
-  background:rgba(60,0,0,0.45);
-  display:none; z-index:100;
-}
-#warning {
-  position:absolute; top:40%; width:100%;
-  text-align:center; color:#ff0000;
-  font-size:3rem; font-weight:bold;
-}
-#blood-canvas { width:100%; height:100%; }
+body{margin:0;overflow:hidden;background:#000;font-family:monospace}
+#ui{position:absolute;top:15px;left:15px;color:#00ff00;z-index:10}
+#joy{position:absolute;bottom:40px;left:40px;width:120px;height:120px;border-radius:50%;border:2px solid #555;display:none}
+#knob{width:40px;height:40px;background:#fff;border-radius:50%;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:.6}
+@media(pointer:coarse){#joy{display:block}}
+#crash{position:fixed;inset:0;display:none;background:rgba(60,0,0,.45);z-index:100}
+#warning{position:absolute;top:40%;width:100%;text-align:center;color:#f00;font-size:3rem}
+#blood{width:100%;height:100%}
 </style>
 </head>
 
 <body>
 <div id="ui">
 <div>AIRBUS A320 NEO</div>
-<div id="stats">ALT: 1500FT | SPD: 240KTS</div>
+<div id="stats"></div>
 </div>
 
-<div id="crash-screen">
-  <div id="warning">TERRAIN COLLISION</div>
-  <canvas id="blood-canvas"></canvas>
+<div id="joy"><div id="knob"></div></div>
+
+<div id="crash">
+<div id="warning">TERRAIN COLLISION</div>
+<canvas id="blood"></canvas>
 </div>
 
 <script type="importmap">
@@ -42,165 +39,153 @@ body { margin:0; overflow:hidden; background:#000; font-family:monospace; }
 <script type="module">
 import * as THREE from 'three';
 
-/* ===== SCENE ===== */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x6aaed6);
-scene.fog = new THREE.FogExp2(0x6aaed6, 0.00012);
+/* SCENE */
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x6aaed6);
+scene.fog=new THREE.FogExp2(0x6aaed6,.00012);
 
-const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 50000);
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth, innerHeight);
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,50000);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0xffffff,0.6));
-const sun = new THREE.DirectionalLight(0xffffff,1.5);
+scene.add(new THREE.AmbientLight(0xffffff,.6));
+const sun=new THREE.DirectionalLight(0xffffff,1.5);
 sun.position.set(1000,2000,1000);
 scene.add(sun);
 
-/* ===== PLAYER PLANE ===== */
-const plane = new THREE.Group();
-const body = new THREE.Mesh(
-  new THREE.CylinderGeometry(2,2,22,16),
-  new THREE.MeshStandardMaterial({color:0xffffff})
-);
-body.rotation.x = Math.PI/2;
-
-const wings = new THREE.Mesh(
-  new THREE.BoxGeometry(30,0.7,6),
-  new THREE.MeshStandardMaterial({color:0xdddddd})
-);
-
-const tail = new THREE.Mesh(
-  new THREE.BoxGeometry(2,6,0.6),
-  new THREE.MeshStandardMaterial({color:0xff0000})
-);
-tail.position.set(0,3,-9);
-
-plane.add(body, wings, tail);
-plane.position.y = 500;
+/* PLAYER PLANE (REALISTIC) */
+const plane=new THREE.Group();
+const fus=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,18,12),new THREE.MeshStandardMaterial({color:0xffffff}));
+fus.rotation.x=Math.PI/2;
+const wing=new THREE.Mesh(new THREE.BoxGeometry(22,.6,4),new THREE.MeshStandardMaterial({color:0xdddddd}));
+const tail=new THREE.Mesh(new THREE.BoxGeometry(1.5,5,.5),new THREE.MeshStandardMaterial({color:0xff0000}));
+tail.position.set(0,2.5,-7);
+plane.add(fus,wing,tail);
+plane.position.y=500;
 scene.add(plane);
 
-/* ===== CAMERA FOLLOW ===== */
-const camOffset = new THREE.Vector3(0, 14, 40);
+/* CAMERA */
+const camOffset=new THREE.Vector3(0,12,38);
 
-/* ===== GROUND ===== */
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(100000,100000),
-  new THREE.MeshStandardMaterial({color:0x224422})
-);
-ground.rotation.x = -Math.PI/2;
+/* GROUND */
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(100000,100000),new THREE.MeshStandardMaterial({color:0x224422}));
+ground.rotation.x=-Math.PI/2;
 scene.add(ground);
 
-/* ===== BUILDINGS (INFINITE) ===== */
+/* BUILDINGS */
 const buildings=[];
-const bGeo=new THREE.BoxGeometry(40,200,40);
-const bMat=new THREE.MeshStandardMaterial({color:0x444444});
 for(let i=0;i<120;i++){
-  const b=new THREE.Mesh(bGeo,bMat);
-  b.position.set(Math.random()*3000-1500,100,Math.random()*-6000);
-  scene.add(b); buildings.push(b);
+ const b=new THREE.Mesh(new THREE.BoxGeometry(40,200,40),new THREE.MeshStandardMaterial({color:0x444}));
+ b.position.set(Math.random()*3000-1500,100,Math.random()*-6000);
+ scene.add(b); buildings.push(b);
 }
 
-/* ===== NPC PLANES ===== */
+/* ROADS */
+const roads=[];
+for(let i=0;i<8;i++){
+ const r=new THREE.Mesh(new THREE.PlaneGeometry(300,6000),new THREE.MeshStandardMaterial({color:0x333333}));
+ r.rotation.x=-Math.PI/2;
+ r.position.set(-1200+i*300,.1,-3000);
+ scene.add(r); roads.push(r);
+}
+
+/* CARS */
+const cars=[];
+function makeCar(){
+ const c=new THREE.Mesh(new THREE.BoxGeometry(12,6,20),new THREE.MeshStandardMaterial({color:0xffaa00}));
+ c.position.set(Math.random()*2400-1200,3,Math.random()*-6000);
+ scene.add(c); cars.push(c);
+}
+for(let i=0;i<20;i++) makeCar();
+
+/* NPC PLANES */
 const npcs=[];
-function createNPC(){
-  const g=new THREE.Group();
-  const b=new THREE.Mesh(
-    new THREE.CylinderGeometry(1.3,1.3,14,10),
-    new THREE.MeshStandardMaterial({color:0xaa0000})
-  );
-  b.rotation.x=Math.PI/2;
-  const w=new THREE.Mesh(
-    new THREE.BoxGeometry(14,0.4,4),
-    new THREE.MeshStandardMaterial({color:0xff0000})
-  );
-  g.add(b,w);
-  g.position.set(Math.random()*600-300,Math.random()*300+200,Math.random()*-5000);
-  scene.add(g); npcs.push(g);
+function makeNPC(){
+ const g=new THREE.Group();
+ const b=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,14,10),new THREE.MeshStandardMaterial({color:0xaa0000}));
+ b.rotation.x=Math.PI/2;
+ const w=new THREE.Mesh(new THREE.BoxGeometry(16,.4,4),new THREE.MeshStandardMaterial({color:0xff0000}));
+ g.add(b,w);
+ g.position.set(Math.random()*600-300,Math.random()*300+200,Math.random()*-5000);
+ scene.add(g); npcs.push(g);
 }
-for(let i=0;i<8;i++) createNPC();
+for(let i=0;i<8;i++) makeNPC();
 
-/* ===== CONTROLS ===== */
+/* CONTROLS */
 const keys={up:0,down:0,left:0,right:0};
-onkeydown=e=>{if(e.key.includes('Arrow'))keys[e.key.replace('Arrow','').toLowerCase()]=1;}
-onkeyup=e=>{if(e.key.includes('Arrow'))keys[e.key.replace('Arrow','').toLowerCase()]=0;}
+onkeydown=e=>{if(e.key.includes('Arrow'))keys[e.key.replace('Arrow','').toLowerCase()]=1};
+onkeyup=e=>{if(e.key.includes('Arrow'))keys[e.key.replace('Arrow','').toLowerCase()]=0};
 
-let crashed=false, speed=6;
+/* MOBILE JOYSTICK (INVERTED PITCH) */
+const joy=document.getElementById("joy");
+const knob=document.getElementById("knob");
+const joyState={x:0,y:0};
 
-/* ===== CRASH EFFECT ===== */
-function triggerCrash(){
-  if(crashed) return;
-  crashed=true;
-  const cs=document.getElementById("crash-screen");
-  cs.style.display="block";
-  const c=document.getElementById("blood-canvas");
-  const ctx=c.getContext("2d");
-  c.width=innerWidth; c.height=innerHeight;
-  const drops=[...Array(40)].map(()=>({x:Math.random()*c.width,y:-20,r:10+Math.random()*15,s:2+Math.random()*4}));
-  (function drip(){
-    ctx.fillStyle="rgba(140,0,0,0.7)";
-    drops.forEach(d=>{
-      ctx.beginPath();
-      ctx.arc(d.x,d.y,d.r,0,Math.PI*2);
-      ctx.fill();
-      d.y+=d.s;
-    });
-    if(crashed) requestAnimationFrame(drip);
-  })();
-  setTimeout(()=>location.reload(),5000);
+joy.addEventListener("touchmove",e=>{
+ const r=joy.getBoundingClientRect(),t=e.touches[0];
+ joyState.x=(t.clientX-(r.left+r.width/2))/(r.width/2);
+ joyState.y=(t.clientY-(r.top+r.height/2))/(r.height/2);
+ knob.style.left=`${50+joyState.x*40}%`;
+ knob.style.top=`${50+joyState.y*40}%`;
+});
+joy.addEventListener("touchend",()=>{joyState.x=joyState.y=0;knob.style.left="50%";knob.style.top="50%"});
+
+let crashed=false,speed=6;
+
+/* CRASH */
+function crash(){
+ if(crashed) return;
+ crashed=true;
+ const c=document.getElementById("crash");
+ c.style.display="block";
+ const cv=document.getElementById("blood"),ctx=cv.getContext("2d");
+ cv.width=innerWidth;cv.height=innerHeight;
+ const d=[...Array(40)].map(()=>({x:Math.random()*cv.width,y:-20,r:10+Math.random()*15,s:2+Math.random()*4}));
+ (function drip(){
+  ctx.fillStyle="rgba(140,0,0,.7)";
+  d.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();p.y+=p.s});
+  requestAnimationFrame(drip);
+ })();
+ setTimeout(()=>location.reload(),5000);
 }
 
-/* ===== LOOP ===== */
+/* LOOP */
 function animate(){
-if(crashed) return;
-requestAnimationFrame(animate);
+ if(crashed) return;
+ requestAnimationFrame(animate);
 
-let pitch=(keys.down-keys.up)*0.02;
-let roll=(keys.left-keys.right)*0.03;
+ let pitch=((keys.down-keys.up) + joyState.y)*0.02; // inverted
+ let roll=((keys.left-keys.right) + joyState.x)*0.03;
 
-plane.rotation.x+=pitch;
-plane.rotation.z=THREE.MathUtils.lerp(plane.rotation.z,roll*2,0.1);
-plane.rotation.y+=roll*0.6;
-plane.translateZ(-speed);
+ plane.rotation.x+=pitch;
+ plane.rotation.z=THREE.MathUtils.lerp(plane.rotation.z,roll*2,.1);
+ plane.rotation.y+=roll*.6;
+ plane.translateZ(-speed);
 
-/* recycle buildings */
-buildings.forEach(b=>{
-  if(b.position.z>plane.position.z+200){
-    b.position.z-=6000;
-    b.position.x=Math.random()*3000-1500;
-  }
-});
-
-/* NPC logic */
-npcs.forEach(n=>{
+ buildings.forEach(b=>{if(b.position.z>plane.position.z+200){b.position.z-=6000;b.position.x=Math.random()*3000-1500}});
+ roads.forEach(r=>{if(r.position.z>plane.position.z+200)r.position.z-=6000});
+ cars.forEach(c=>{
+  c.position.z+=3;
+  if(c.position.z>plane.position.z+200)c.position.z-=6000;
+  if(c.position.distanceTo(plane.position)<18) crash();
+ });
+ npcs.forEach(n=>{
   n.position.z+=2;
-  if(n.position.z>plane.position.z+100){
-    n.position.z-=6000;
-    n.position.x=Math.random()*600-300;
-  }
-  if(n.position.distanceTo(plane.position)<20) triggerCrash();
-});
+  if(n.position.z>plane.position.z+100)n.position.z-=6000;
+  if(n.position.distanceTo(plane.position)<20) crash();
+ });
 
-/* ground */
-if(plane.position.y<5) triggerCrash();
+ if(plane.position.y<5) crash();
 
-/* camera */
-const camPos=camOffset.clone().applyQuaternion(plane.quaternion).add(plane.position);
-camera.position.lerp(camPos,0.08);
-camera.lookAt(plane.position);
+ const cam=camOffset.clone().applyQuaternion(plane.quaternion).add(plane.position);
+ camera.position.lerp(cam,.08);
+ camera.lookAt(plane.position);
 
-document.getElementById("stats").innerText=
-`ALT: ${Math.round(plane.position.y*3)}FT | SPD: 240KTS`;
-
-renderer.render(scene,camera);
+ document.getElementById("stats").innerText=`ALT:${Math.round(plane.position.y*3)}FT | SPD:240KTS`;
+ renderer.render(scene,camera);
 }
-
-onresize=()=>{
-camera.aspect=innerWidth/innerHeight;
-camera.updateProjectionMatrix();
-renderer.setSize(innerWidth,innerHeight);
-};
-
+onresize=()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)};
 animate();
 </script>
 </body>
